@@ -21,8 +21,6 @@ class LinearWarmupCosineLRScheduler:
         self.warmup_steps = warmup_steps
         self.warmup_start_lr = warmup_start_lr if warmup_start_lr >= 0 else init_lr
 
-        # 给每个 param group 保存自己的 lr 配置。
-        # 如果 group 里没有显式指定，就回退到全局配置。
         for group in self.optimizer.param_groups:
             group.setdefault("init_lr", group.get("lr", self.init_lr))
             group.setdefault("min_lr", self.min_lr)
@@ -72,7 +70,6 @@ def linear_warmup_lr(step, max_step, start_lr, target_lr):
     )
 
 
-# 保留旧函数名，避免其他地方 import 出错。
 def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
     lr = cosine_lr(epoch, max_epoch, init_lr, min_lr)
     for param_group in optimizer.param_groups:
