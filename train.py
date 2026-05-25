@@ -95,7 +95,6 @@ def get_trainable_state_dict(model):
     trainable_state_dict = {}
     for name, param in model.named_parameters():
         if param.requires_grad:
-            # 【优化】使用 detach() 彻底切断计算图，防止潜在的显存泄漏
             trainable_state_dict[name] = param.detach().cpu()
     return trainable_state_dict
 
@@ -294,7 +293,6 @@ def train_one_stage(cfg, stage_cfg, resume_ckpt=None):
         warmup_start_lr=cfg.run.warmup_lr,
     )
 
-    # 【修复 1】: 智能适配混合精度与 Scaler (默认 Qwen 推荐的 bfloat16)
     use_amp = bool(cfg.run.amp and device.type == "cuda")
     amp_dtype_str = stage_cfg.get(
         "amp_dtype", cfg.run.get("amp_dtype", "bfloat16")
@@ -349,7 +347,6 @@ def train_one_stage(cfg, stage_cfg, resume_ckpt=None):
                 if key in batch and isinstance(batch[key], torch.Tensor):
                     batch[key] = batch[key].to(device)
 
-            # 【修复 2】: 使用最新的 torch.amp.autocast 并明确传入 dtype
             if use_amp:
                 with torch.amp.autocast("cuda", dtype=pt_dtype):
                     outputs = model(batch)
@@ -380,7 +377,6 @@ def train_one_stage(cfg, stage_cfg, resume_ckpt=None):
 
             actual_steps_in_epoch += 1
 
-            # 【修复 3】: 如果使用 Scaler，在 clip_grad_norm_ 之前必须调用 unscale_()
             if (step + 1) % grad_accum_steps == 0:
                 if use_amp and scaler is not None:
                     scaler.unscale_(optimizer)
@@ -392,7 +388,6 @@ def train_one_stage(cfg, stage_cfg, resume_ckpt=None):
                     optimizer.step()
                 optimizer.zero_grad()
 
-        # 处理 Epoch 末尾剩余不足累积步数的梯度
         if actual_steps_in_epoch > 0 and actual_steps_in_epoch % grad_accum_steps != 0:
             if use_amp and scaler is not None:
                 scaler.unscale_(optimizer)
@@ -411,7 +406,6 @@ def train_one_stage(cfg, stage_cfg, resume_ckpt=None):
                 clean_ans = str(sans).replace("\n", " ").replace("\r", "")
                 f.write(f"{sid}\t{clean_ans}\n")
 
-        # 【修复 4】: lm_loss 使用总步数做分母更准确
         epoch_train_loss = epoch_loss_sum / max(actual_steps_in_epoch, 1)
         epoch_lm_loss = epoch_lm_loss_sum / max(actual_steps_in_epoch, 1)
         epoch_emotion_loss = epoch_emotion_loss_sum / max(epoch_emotion_loss_count, 1)
